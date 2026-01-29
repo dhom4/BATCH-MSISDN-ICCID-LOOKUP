@@ -252,15 +252,14 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   const alignedOutput = alignedLines.join('\n');
 
   // =========================================
-  // ✅ ICCID-ONLY LIST WITH DASHES FOR MISSING VALUES
-  // (Maintains 1:1 line count with input MSISDNs)
+  // ✅ FIXED: ICCID-ONLY LIST (WITH DASHES FOR MISSING, PRESERVES INPUT ORDER)
   // =========================================
   const iccidOnlyList = formattedResults
-    .map(r => r.iccid.trim() !== "" ? r.iccid : "-")
+    .map(r => r.iccid.trim() !== "" ? r.iccid : "-") // Show "-" for missing
     .join("\n");
 
   // =========================================
-  // ✅ RESULTS MODAL (WITHOUT TSV SECTION)
+  // ✅ RESULTS MODAL (ICCID LIST ON TOP + ALIGNED VIEW BELOW)
   // =========================================
   const resultsOverlay = document.createElement('div');
   resultsOverlay.style.cssText = `
@@ -281,28 +280,29 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   header.innerHTML = `<h2 style="margin:0 0 15px 0; color:#1a5fb4">✅ Lookup Complete!</h2>
     <p style="margin:0 0 20px 0; color:#555">
       <strong>${msisdnList.length}</strong> MSISDNs processed • 
-      Empty ICCID = Not Found • 
-      Prefix "8925263790000" removed from valid ICCIDs
+      Prefix "8925263790000" removed from valid ICCIDs • 
+      "-" indicates not found
     </p>`;
   resultsModal.appendChild(header);
 
-  // ===== ICCID-ONLY LIST SECTION (TOP SECTION) =====
+  // ===== ICCID-ONLY LIST SECTION (NOW ON TOP) =====
   const iccidOnlySection = document.createElement('div');
-  iccidOnlySection.style.cssText = 'margin-bottom: 25px;';
+  iccidOnlySection.style.cssText = 'margin-bottom: 25px;'; // Clean top section
   
   const iccidOnlyTitle = document.createElement('h3');
-  iccidOnlyTitle.textContent = '📱 ICCID-Only List (Excludes Not Found → shown as "-"):';
+  iccidOnlyTitle.textContent = '📱 ICCID List (Input Order, "-" = Not Found):';
   iccidOnlyTitle.style.cssText = 'margin:0 0 12px 0; color:#6f42c1; font-size:18px;';
   iccidOnlySection.appendChild(iccidOnlyTitle);
   
   const iccidOnlyPre = document.createElement('pre');
-  iccidOnlyPre.textContent = iccidOnlyList;
+  iccidOnlyPre.textContent = iccidOnlyList; // Always shows values/dashes
   iccidOnlyPre.style.cssText = `
-    background: #f0f8ff; border: 1px solid #cce5ff; border-radius: 8px;
-    padding: 16px; font-family: monospace; font-size: 15px; line-height: 1.6;
+    background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;
+    padding: 16px; font-family: monospace; font-size: 16px; line-height: 1.6;
     white-space: pre; margin-bottom: 12px; 
     box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
-    min-height: 60px; max-height: 200px; overflow: auto;
+    min-height: 80px; max-height: 250px; overflow: auto;
+    font-weight: 500;
   `;
   iccidOnlySection.appendChild(iccidOnlyPre);
   
@@ -331,21 +331,21 @@ async function batchMsisdnToIccidLookup(msisdnList) {
     }
   };
   iccidOnlySection.appendChild(copyIccidOnlyBtn);
-  resultsModal.appendChild(iccidOnlySection);
+  resultsModal.appendChild(iccidOnlySection); // APPENDED FIRST
 
-  // ===== ALIGNED VIEW (EASY COPY BLOCK) - BELOW ICCID LIST =====
+  // ===== ALIGNED VIEW SECTION (NOW BELOW) =====
   const alignedSection = document.createElement('div');
   alignedSection.style.cssText = 'margin: 25px 0; padding-top: 15px; border-top: 1px solid #eee;';
   
   const alignedTitle = document.createElement('h3');
-  alignedTitle.textContent = '✨ Aligned View (Easy Copy Block):';
+  alignedTitle.textContent = '✨ Aligned View (MSISDN + ICCID):';
   alignedTitle.style.cssText = 'margin:0 0 12px 0; color:#28a745; font-size:18px;';
   alignedSection.appendChild(alignedTitle);
   
   const alignedPre = document.createElement('pre');
   alignedPre.textContent = alignedOutput;
   alignedPre.style.cssText = `
-    background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;
+    background: #f0f8ff; border: 1px solid #cce5ff; border-radius: 8px;
     padding: 16px; font-family: monospace; font-size: 15px; line-height: 1.6;
     white-space: pre; margin-bottom: 12px; 
     box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
@@ -368,7 +368,6 @@ async function batchMsisdnToIccidLookup(msisdnList) {
       await navigator.clipboard.writeText(alignedOutput);
       showFeedback('✅ Aligned block copied!', '#d4edda', '#155724');
     } catch (err) {
-      // Fallback copy method
       const temp = document.createElement('textarea');
       temp.value = alignedOutput;
       document.body.appendChild(temp);
@@ -379,13 +378,13 @@ async function batchMsisdnToIccidLookup(msisdnList) {
     }
   };
   alignedSection.appendChild(copyAlignedBtn);
-  resultsModal.appendChild(alignedSection);
+  resultsModal.appendChild(alignedSection); // APPENDED SECOND
 
   // ===== ACTION BUTTONS (DOWNLOAD + CLOSE) =====
   const btnContainer = document.createElement('div');
   btnContainer.style.cssText = `display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap; margin-top:20px; padding-top:15px; border-top:1px solid #eee;`;
 
-  // Download button (saves both sections)
+  // Download button (updated content structure)
   const downloadBtn = document.createElement('button');
   downloadBtn.innerHTML = '📥 Download Results';
   downloadBtn.style.cssText = `
@@ -396,10 +395,11 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   downloadBtn.onmouseover = () => downloadBtn.style.background = '#138496';
   downloadBtn.onmouseout = () => downloadBtn.style.background = '#17a2b8';
   downloadBtn.onclick = () => {
+    // Download with ICCID list FIRST (matches modal order)
     const fullOutput = 
-      "📱 ICCID-ONLY LIST (\"-\" = Not Found)\n" + 
-      iccidOnlyList +
-      "\n\n✨ ALIGNED VIEW\n" + 
+      "📱 ICCID LIST (Input Order, '-' = Not Found)\n" + 
+      iccidOnlyList + 
+      "\n\n✨ ALIGNED VIEW (MSISDN + ICCID)\n" + 
       alignedOutput;
     
     const blob = new Blob([fullOutput], { type: "text/plain;charset=utf-8" });
@@ -462,7 +462,7 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   resultsOverlay.appendChild(resultsModal);
   document.body.appendChild(resultsOverlay);
 
-  console.log("📄 Results ready. Modal displayed without TSV section.");
+  console.log("📄 Results ready. ICCID list shown first with dashes for missing values.");
   console.table(formattedResults);
 }
 
