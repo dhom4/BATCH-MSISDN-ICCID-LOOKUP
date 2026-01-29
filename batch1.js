@@ -215,15 +215,53 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   });
 
   // =========================================
-  // ✅ REQUIREMENT 2.2: USER-FRIENDLY RESULTS MODAL
-  // With copy button, download option, and clear empty cells
+  // ✅ COMPUTE ALIGNED OUTPUT (WITH SPACES FOR EMPTY FIELDS)
   // =========================================
-  const outputContent = "MSISDN\tICCID\n" + 
-    formattedResults.map(r => 
-      `${r.msisdn}\t${r.iccid}` // Empty string becomes visible tab gap
-    ).join("\n");
+  // Calculate column widths for perfect alignment
+  const msisdnHeader = "MSISDN";
+  const iccidHeader = "ICCID";
+  let maxMsisdnWidth = msisdnHeader.length;
+  let maxIccidWidth = iccidHeader.length;
+  
+  formattedResults.forEach(r => {
+    if (r.msisdn.length > maxMsisdnWidth) maxMsisdnWidth = r.msisdn.length;
+    if (r.iccid.length > maxIccidWidth) maxIccidWidth = r.iccid.length;
+  });
+  
+  // Enforce minimum widths for readability
+  maxMsisdnWidth = Math.max(maxMsisdnWidth, 10);
+  maxIccidWidth = Math.max(maxIccidWidth, 15);
+  
+  // Build aligned text block (empty ICCIDs = visible spaces)
+  const alignedLines = [];
+  alignedLines.push(
+    msisdnHeader.padEnd(maxMsisdnWidth) + "  " + iccidHeader.padEnd(maxIccidWidth)
+  );
+  alignedLines.push(
+    "─".repeat(maxMsisdnWidth) + "  " + "─".repeat(maxIccidWidth) // Separator line
+  );
+  
+  formattedResults.forEach(r => {
+    // CRITICAL: Empty ICCID becomes SPACES (not empty string) for alignment
+    const displayIccid = r.iccid || " ".repeat(maxIccidWidth);
+    alignedLines.push(
+      r.msisdn.padEnd(maxMsisdnWidth) + "  " + displayIccid.padEnd(maxIccidWidth)
+    );
+  });
+  
+  const alignedOutput = alignedLines.join('\n');
 
-  // Create results modal
+  // =========================================
+  // ✅ ICCID-ONLY LIST WITH DASHES FOR MISSING VALUES
+  // (Maintains 1:1 line count with input MSISDNs)
+  // =========================================
+  const iccidOnlyList = formattedResults
+    .map(r => r.iccid.trim() !== "" ? r.iccid : "-")
+    .join("\n");
+
+  // =========================================
+  // ✅ RESULTS MODAL (WITHOUT TSV SECTION)
+  // =========================================
   const resultsOverlay = document.createElement('div');
   resultsOverlay.style.cssText = `
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -235,7 +273,7 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   resultsModal.style.cssText = `
     background: white; padding: 25px; border-radius: 10px;
     width: 92%; max-width: 750px; box-shadow: 0 5px 30px rgba(0,0,0,0.5);
-    max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
+    max-height: 90vh; overflow: auto; display: flex; flex-direction: column;
   `;
 
   // Header
@@ -248,47 +286,108 @@ async function batchMsisdnToIccidLookup(msisdnList) {
     </p>`;
   resultsModal.appendChild(header);
 
-  // Results display
-  const textarea = document.createElement('textarea');
-  textarea.value = outputContent;
-  textarea.readOnly = true;
-  textarea.style.cssText = `
-    flex:1; min-height: 250px; width:100%; padding:14px; 
-    font-family: monospace; font-size:15px; line-height:1.5;
-    border:1px solid #ddd; border-radius:6px; margin-bottom:20px;
-    resize: vertical; background:#f9f9f9; color:#222;
+  // ===== ICCID-ONLY LIST SECTION (TOP SECTION) =====
+  const iccidOnlySection = document.createElement('div');
+  iccidOnlySection.style.cssText = 'margin-bottom: 25px;';
+  
+  const iccidOnlyTitle = document.createElement('h3');
+  iccidOnlyTitle.textContent = '📱 ICCID-Only List (Excludes Not Found → shown as "-"):';
+  iccidOnlyTitle.style.cssText = 'margin:0 0 12px 0; color:#6f42c1; font-size:18px;';
+  iccidOnlySection.appendChild(iccidOnlyTitle);
+  
+  const iccidOnlyPre = document.createElement('pre');
+  iccidOnlyPre.textContent = iccidOnlyList;
+  iccidOnlyPre.style.cssText = `
+    background: #f0f8ff; border: 1px solid #cce5ff; border-radius: 8px;
+    padding: 16px; font-family: monospace; font-size: 15px; line-height: 1.6;
+    white-space: pre; margin-bottom: 12px; 
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
+    min-height: 60px; max-height: 200px; overflow: auto;
   `;
-  resultsModal.appendChild(textarea);
-
-  // Button container
-  const btnContainer = document.createElement('div');
-  btnContainer.style.cssText = `display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap`;
-
-  // Copy button
-  const copyBtn = document.createElement('button');
-  copyBtn.innerHTML = '📋 Copy Results';
-  copyBtn.style.cssText = `
-    flex:1; min-width:150px; padding:12px; background:#28a745; color:white; border:none;
-    border-radius:6px; font-size:16px; font-weight:500; cursor:pointer;
-    transition:all 0.2s; box-shadow:0 2px 5px rgba(0,0,0,0.2);
+  iccidOnlySection.appendChild(iccidOnlyPre);
+  
+  const copyIccidOnlyBtn = document.createElement('button');
+  copyIccidOnlyBtn.innerHTML = '📋 Copy ICCID List';
+  copyIccidOnlyBtn.style.cssText = `
+    background: #6f42c1; color: white; border: none; padding: 10px 20px;
+    border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.2s;
   `;
-  copyBtn.onmouseover = () => copyBtn.style.background = '#218838';
-  copyBtn.onmouseout = () => copyBtn.style.background = '#28a745';
-  copyBtn.onclick = async () => {
+  copyIccidOnlyBtn.onmouseover = () => copyIccidOnlyBtn.style.background = '#5a32a3';
+  copyIccidOnlyBtn.onmouseout = () => copyIccidOnlyBtn.style.background = '#6f42c1';
+  copyIccidOnlyBtn.onclick = async () => {
     try {
-      await navigator.clipboard.writeText(textarea.value);
-      showFeedback('✅ Copied to clipboard!', '#d4edda', '#155724');
+      await navigator.clipboard.writeText(iccidOnlyList);
+      showFeedback('✅ ICCID list copied!', '#d4edda', '#155724');
     } catch (err) {
-      // Fallback for restricted environments
-      textarea.select();
+      const temp = document.createElement('textarea');
+      temp.value = iccidOnlyList;
+      document.body.appendChild(temp);
+      temp.select();
       document.execCommand('copy');
+      document.body.removeChild(temp);
       showFeedback('✅ Copied (fallback method)', '#d1ecf1', '#0c5460');
     }
   };
+  iccidOnlySection.appendChild(copyIccidOnlyBtn);
+  resultsModal.appendChild(iccidOnlySection);
 
-  // Download button
+  // ===== ALIGNED VIEW (EASY COPY BLOCK) - BELOW ICCID LIST =====
+  const alignedSection = document.createElement('div');
+  alignedSection.style.cssText = 'margin: 25px 0; padding-top: 15px; border-top: 1px solid #eee;';
+  
+  const alignedTitle = document.createElement('h3');
+  alignedTitle.textContent = '✨ Aligned View (Easy Copy Block):';
+  alignedTitle.style.cssText = 'margin:0 0 12px 0; color:#28a745; font-size:18px;';
+  alignedSection.appendChild(alignedTitle);
+  
+  const alignedPre = document.createElement('pre');
+  alignedPre.textContent = alignedOutput;
+  alignedPre.style.cssText = `
+    background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;
+    padding: 16px; font-family: monospace; font-size: 15px; line-height: 1.6;
+    white-space: pre; margin-bottom: 12px; 
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.05);
+    max-height: 300px; overflow: auto;
+  `;
+  alignedSection.appendChild(alignedPre);
+  
+  const copyAlignedBtn = document.createElement('button');
+  copyAlignedBtn.innerHTML = '📋 Copy Aligned Block';
+  copyAlignedBtn.style.cssText = `
+    background: #28a745; color: white; border: none; padding: 10px 20px;
+    border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.2s;
+  `;
+  copyAlignedBtn.onmouseover = () => copyAlignedBtn.style.background = '#218838';
+  copyAlignedBtn.onmouseout = () => copyAlignedBtn.style.background = '#28a745';
+  copyAlignedBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(alignedOutput);
+      showFeedback('✅ Aligned block copied!', '#d4edda', '#155724');
+    } catch (err) {
+      // Fallback copy method
+      const temp = document.createElement('textarea');
+      temp.value = alignedOutput;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      showFeedback('✅ Copied (fallback method)', '#d1ecf1', '#0c5460');
+    }
+  };
+  alignedSection.appendChild(copyAlignedBtn);
+  resultsModal.appendChild(alignedSection);
+
+  // ===== ACTION BUTTONS (DOWNLOAD + CLOSE) =====
+  const btnContainer = document.createElement('div');
+  btnContainer.style.cssText = `display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap; margin-top:20px; padding-top:15px; border-top:1px solid #eee;`;
+
+  // Download button (saves both sections)
   const downloadBtn = document.createElement('button');
-  downloadBtn.innerHTML = '📥 Download TXT';
+  downloadBtn.innerHTML = '📥 Download Results';
   downloadBtn.style.cssText = `
     flex:1; min-width:150px; padding:12px; background:#17a2b8; color:white; border:none;
     border-radius:6px; font-size:16px; font-weight:500; cursor:pointer;
@@ -297,7 +396,13 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   downloadBtn.onmouseover = () => downloadBtn.style.background = '#138496';
   downloadBtn.onmouseout = () => downloadBtn.style.background = '#17a2b8';
   downloadBtn.onclick = () => {
-    const blob = new Blob([outputContent], { type: "text/plain;charset=utf-8" });
+    const fullOutput = 
+      "📱 ICCID-ONLY LIST (\"-\" = Not Found)\n" + 
+      iccidOnlyList +
+      "\n\n✨ ALIGNED VIEW\n" + 
+      alignedOutput;
+    
+    const blob = new Blob([fullOutput], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -321,7 +426,6 @@ async function batchMsisdnToIccidLookup(msisdnList) {
   closeBtn.onmouseout = () => closeBtn.style.background = '#6c757d';
   closeBtn.onclick = () => document.body.removeChild(resultsOverlay);
 
-  btnContainer.appendChild(copyBtn);
   btnContainer.appendChild(downloadBtn);
   btnContainer.appendChild(closeBtn);
   resultsModal.appendChild(btnContainer);
@@ -335,29 +439,30 @@ async function batchMsisdnToIccidLookup(msisdnList) {
     fb.id = 'result-feedback';
     fb.innerHTML = message;
     fb.style.cssText = `
-      position:absolute; top:15px; right:15px; padding:10px 20px; border-radius:6px;
-      background:${bg}; color:${color}; font-weight:500; box-shadow:0 3px 10px rgba(0,0,0,0.2);
-      z-index:2147483647; animation:fade 3s forwards;
+      position: fixed; bottom: 25px; right: 25px; padding: 12px 24px; border-radius: 8px;
+      background: ${bg}; color: ${color}; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 2147483647; animation: fadeFeedback 3s forwards;
+      max-width: 350px; text-align: center;
     `;
     document.head.insertAdjacentHTML('beforeend', `
       <style>
-        @keyframes fade { 
-          0% { opacity:1; transform:translateY(0); } 
-          70% { opacity:1; } 
-          100% { opacity:0; transform:translateY(-10px); } 
+        @keyframes fadeFeedback { 
+          0% { opacity: 1; transform: translateY(0); } 
+          70% { opacity: 1; } 
+          100% { opacity: 0; transform: translateY(-15px); } 
         }
       </style>
     `);
-    resultsModal.appendChild(fb);
-    setTimeout(() => fb.remove(), 3000);
+    document.body.appendChild(fb);
+    setTimeout(() => {
+      if (fb.parentNode) fb.parentNode.removeChild(fb);
+    }, 3000);
   }
 
   resultsOverlay.appendChild(resultsModal);
   document.body.appendChild(resultsOverlay);
-  textarea.focus();
-  textarea.select(); // Ready for manual copy if needed
 
-  console.log("📄 Results ready. Modal displayed with formatted output.");
+  console.log("📄 Results ready. Modal displayed without TSV section.");
   console.table(formattedResults);
 }
 
